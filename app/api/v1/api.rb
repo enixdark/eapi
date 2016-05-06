@@ -12,21 +12,42 @@ module V1
     REGEX_TO_EMAIL =  /to=<#{REGEX_EMAIL}>/i
     REGEX_TIME = /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[\d\s]+:\d{2}:\d{2}/i
     REGEX_STATUS = /status=\w+/i
-    REGEX_ERROR_MESSAGE = /Sender address rejected[\w\W]+\)/i
+    REGEX_ERROR_MESSAGE = /sender address rejected[\w\W]+\)/i
+    REGEX_SUBJECT = /subject:[\w\s]+from/i
     NUMBER_ON_PAGE = 25
+
+    def self.extract_message(item)
+      message = item["message"]
+      timestamp = DateTime.parse("#{DateTime.parse(item['@timestamp']).year} \
+          #{REGEX_TIME.match(message)[0]}")
+      .strftime("%Y-%m-%d %H:%M:%S") rescue nil
+      from = REGEX_EMAIL.match(REGEX_FROM_EMAIL.match(message)[0])[0] rescue nil
+      to = REGEX_EMAIL.match(REGEX_TO_EMAIL.match(message)[0])[0] rescue nil
+      status = REGEX_STATUS.match(message)[0].split("=")[1] rescue nil
+      subject = REGEX_SUBJECT.match(message)[0].split(" ")[1..-2].join(" ") rescue nil
+      error_message = status == "deferred" ? REGEX_ERROR_MESSAGE.match(message)[0] : nil
+      { :timestamp =>  timestamp,
+        :status => status,
+        :from => from ,
+        :to => to ,
+        :subject => subject
+      }.merge( error_message ? { error_message: error_message } : {})
+    end
+
 
     resource :messages do
       desc 'Return result messages'
       params do
-        optional :email, type: String
+        optional :from, type: String
+        optional :to, type: String
         optional :status, type: String
         optional :timestamp, type: String
         optional :page, type: Integer
       end
       get :filter do
         # response = Elasticsearch::Model.client.perform_request 'POST', 'logstash-*/_search?size=
-        page = params.keys?(:page) ? params[:page].to_i : 1
-        shoulds = [] << {}.merge(params.slice(:email, :status, :timestamp)).values.map do |item|
+        page = params.key?(:page) ? params[:page].to_i : 1
+        shoulds = [] << {}.merge(params.slice(:from, :to, :status, :timestamp)).values.map do |item|
           {
             match: {
                 message: item
@@ -35,26 +56,21 @@ module V1
         end
         query = shoulds.flatten.empty? ? { query: { match_all: {} } } : { query: { bool: { must: shoulds } } }
         response = Elasticsearch::Model.client.search index: 'logstash-*', body: query.merge( { from: (page - 1)*NUMBER_ON_PAGE, size: NUMBER_ON_PAGE })
-        # Process nlp to extract email , datetime from message
-        ## TODO
-        #
+
         records = response["hits"]["hits"].map { |item| item["_source"] }
-                                              .map do |item|
-                                                message = item["message"]
-                                                timestamp = DateTime.parse("#{DateTime.parse(item['@timestamp']).year} \
-                                                    #{REGEX_TIME.match(message)[0]}")
-                                                    .strftime("%Y-%m-%d %H:%M:%S") rescue nil
-                                                from = REGEX_EMAIL.match(REGEX_FROM_EMAIL.match(message)[0])[0] rescue nil
-                                                to = REGEX_EMAIL.match(REGEX_TO_EMAIL.match(message)[0])[0] rescue nil
-                                                status = REGEX_STATUS.match(message)[0].split("=")[1] rescue nil #from ? :receive : ( to ? :sent : :deffered )
-                                                error_message = status == "deffered" ? REGEX_ERROR_MESSAGE.match(message)[0] : nil
-                                                { :timestamp =>  timestamp,
-                                                  :status => status,
-                                                  :from => from ,
-                                                  :to => to ,
-                                                  :subject => nil
-                                                }.merge( error_message ? { error_message: error_message } : {})
-                                              end
+                                          .map { |item| API.extract_message(item) }
+                                          .select do |item|
+                                            if params[:from] && params[:to]
+                                              params[:from] == item[:from] && params[:to] == item[:to]
+                                            elsif params[:to]
+                                              params[:to] == item[:to]
+                                            elsif params[:from]
+                                              params[:from] == item[:from]
+                                            else
+                                              false
+                                            end
+                                          end
+
         # return json data 
         {
         _meta: {
@@ -66,6 +82,7 @@ module V1
                 }
         }
       end
+
     end
   end
 end
