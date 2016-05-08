@@ -16,6 +16,8 @@ module V1
     REGEX_SUBJECT = /subject:[\w\s]+from/i
     NUMBER_ON_PAGE = 25
 
+
+    # extract and format some field from json message
     def self.extract_message(item)
       message = item["message"]
       timestamp = DateTime.parse("#{DateTime.parse(item['@timestamp']).year} \
@@ -25,13 +27,19 @@ module V1
       to = REGEX_EMAIL.match(REGEX_TO_EMAIL.match(message)[0])[0] rescue nil
       status = REGEX_STATUS.match(message)[0].split("=")[1] rescue nil
       subject = REGEX_SUBJECT.match(message)[0].split(" ")[1..-2].join(" ") rescue nil
-      error_message = status == "deferred" ? REGEX_ERROR_MESSAGE.match(message)[0] : nil
+      error_message = status == "deferred" ? ( REGEX_ERROR_MESSAGE.match(message) rescue nil )  : nil
       { :timestamp =>  timestamp,
         :status => status,
         :from => from ,
         :to => to ,
         :subject => subject
       }.merge( error_message ? { error_message: error_message } : {})
+    end
+
+    def self.compare_time(time1, time2)
+      tp = DateTime.parse(time1) #.strftime('%Q')
+      ti = DateTime.parse(time2)
+      DateTime.parse(tp.strftime('%Y-%m-%d')) <= tp && tp <= ti
     end
 
 
@@ -55,23 +63,15 @@ module V1
           }
         end
         query = shoulds.flatten.empty? ? { query: { match_all: {} } } : { query: { bool: { must: shoulds } } }
-        response = Elasticsearch::Model.client.search index: 'logstash-*', body: query.merge( { from: (page - 1)*NUMBER_ON_PAGE, size: NUMBER_ON_PAGE })
+        response = Elasticsearch::Model.client.search index: 'logstash-*', 
+          body: query.merge( { from: (page - 1)*NUMBER_ON_PAGE, size: NUMBER_ON_PAGE })
 
         records = response["hits"]["hits"].map { |item| item["_source"] }
                                           .map { |item| API.extract_message(item) }
-                                          .select do |item|
-                                            if params[:from] && params[:to]
-                                              params[:from] == item[:from] && params[:to] == item[:to]
-                                            elsif params[:to]
-                                              params[:to] == item[:to]
-                                            elsif params[:from]
-                                              params[:from] == item[:from]
-                                            else
-                                              false
-                                            end
-                                          end
+                                          .select { |item| params.slice(:to,:from,:status,:timestamp).keys.map{ |it| (
+                                            it.to_sym != :timestamp ? ( params[it] == item[it.to_sym] ) : API.compare_time(params[it],item[it.to_sym]) ) }.all? }
 
-        # return json data 
+        # return json data
         {
         _meta: {
         total_records: records.length,
@@ -86,3 +86,4 @@ module V1
     end
   end
 end
+
