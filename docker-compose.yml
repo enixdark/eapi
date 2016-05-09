@@ -1,0 +1,10 @@
+web:
+  build: .
+  ports:
+    - "3000:3000"
+  environment:
+    - DEBUG=false
+    - RAILS_ENV=development
+  command: bundle exec rails s -p 3000 -b '0.0.0.0'
+  volumes:
+    - .:/app

@@ -69,7 +69,8 @@ module V1
         records = response["hits"]["hits"].map { |item| item["_source"] }
                                           .map { |item| API.extract_message(item) }
                                           .select { |item| params.slice(:to,:from,:status,:timestamp).keys.map{ |it| (
-                                            it.to_sym != :timestamp ? ( params[it] == item[it.to_sym] ) : API.compare_time(params[it],item[it.to_sym]) ) }.all? }
+                                            it.to_sym != :timestamp ? ( params[it] == item[it.to_sym] )
+                                             : API.compare_time(params[it],item[it.to_sym]) ) }.all? }
 
         # return json data
         {
