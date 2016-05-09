@@ -6,6 +6,10 @@ module V1
     format :json
     prefix :api
 
+    before do
+      header "Access-Control-Allow-Origin", "*"
+    end
+
     # List regex to extract some data from message or mail context
     REGEX_EMAIL = /([\w+\-]\.?)+@[a-z\d\-]+(\.[a-z]+)*\.[a-z]+/i
     REGEX_FROM_EMAIL =  /from=<#{REGEX_EMAIL}>/i
