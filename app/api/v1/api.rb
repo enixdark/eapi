@@ -54,18 +54,36 @@ module V1
       message = item["message"]
       email = REGEX_EMAIL.match(message)[0] rescue nil
       timestamp =  DateTime.parse(item["@timestamp"]).strftime("%Y-%m-%d %H:%M:%S") rescue nil
-      # if message.match("said")
-      #   byebug
-      # end
       code = REGEX_SMTP_RESPONSE.match(message)[0].split(/[\-\s]/)[1].to_i rescue nil
+      status = REGEX_STATUS.match(message)[0].split("=")[1] rescue nil
       unless code
         code = REGEX_AUTHEN_INVALID.match(message) == nil ? nil : 535
       end
       {
         email: email,
         timestamp: timestamp,
-        code: code
+        code: code,
+        status: status
       }
+    end
+
+    def self.response(params, size, *args)
+      page = params.key?(:page) ? params[:page].to_i : 1
+      must = [] << {}.merge(params.slice(args)).values.map do |item|
+        {
+          match: {
+              message: item
+          }
+        }
+      end
+      from = params.key?(:from) ? DateTime.parse("#{params[:from]} 00:00:00").strftime('%Q').to_i : nil
+      to = params.key?(:to) ? DateTime.parse("#{params[:to]} 23:59:59").strftime('%Q').to_i : nil
+      must[0] << { range: { "@timestamp": {}.merge(gte: from).merge(lte: to).select { |key,value| value != nil } } }
+      query = must.flatten.empty? ? { query: { match_all: {} } } : { query: { bool: { must: must } } }
+      response = Elasticsearch::Model.client.search index: 'logstash-*',
+        body: query.merge( { from: (page - 1)*size, size: size })
+      [response["hits"]["hits"].map { |item| item["_source"] }
+                              .map { |item| yield(item) }, page]
     end
 
 
@@ -80,22 +98,17 @@ module V1
       end
 
       get do
-        must = [] << {}.merge(params.slice(:email, :status)).values.map do |item|
-          {
-            match: {
-                message: item
-            }
-          }
-        end
-        from = params.key?(:from) ? DateTime.parse("#{params[:from]} 00:00:00").strftime('%Q').to_i : nil
-        to = params.key?(:to) ? DateTime.parse("#{params[:to]} 23:59:59").strftime('%Q').to_i : nil
-        must[0] << { range: { "@timestamp": {}.merge(gte: from).merge(lte: to).select { |key,value| value != nil } } }
-        query = must.flatten.empty? ? { query: { match_all: {} } } : { query: { bool: { must: must } } }
-        response = Elasticsearch::Model.client.search index: 'logstash-*', body: query.merge( { size: NUMBER_MAX_PAGE })
-        records = response["hits"]["hits"].map { |item| item["_source"] }
-                                .map { |item| API.extract_code(item) }
-                                .select { |item| item[:code] != nil }
-        byebug
+        (response,page) = API.response(params, NUMBER_MAX_PAGE, :email, :status) { |item| API.extract_code(item) }
+        records = response.select { |item| item[:code] != nil && ( params.key?(:email) ? params[:email] == item[:email] : true ) }
+                          # .inject({}) do |dict, item|
+                          #   unless dict.key? item[:code]
+                          #      dict[item[:code]] = 1
+                          #   else
+                          #      dict[item[:code]] += 1
+                          #   end
+                          #   dict
+                          # end
+        records
       end
 
 
@@ -113,27 +126,11 @@ module V1
         optional :page, type: Integer
       end
       get do
-        # response = Elasticsearch::Model.client.perform_request 'POST', 'logstash-*/_search?size=
-        page = params.key?(:page) ? params[:page].to_i : 1
-        must = [] << {}.merge(params.slice(:from_email, :to_email, :status)).values.map do |item|
-          {
-            match: {
-                message: item
-            }
-          }
-        end
-        from = params.key?(:from) ? DateTime.parse("#{params[:from]} 00:00:00").strftime('%Q').to_i : nil
-        to = params.key?(:to) ? DateTime.parse("#{params[:to]} 23:59:59").strftime('%Q').to_i : nil
-        must[0] << { range: { "@timestamp": {}.merge(gte: from).merge(lte: to).select { |key,value| value != nil } } }
-        query = must.flatten.empty? ? { query: { match_all: {} } } : { query: { bool: { must: must } } }
-        response = Elasticsearch::Model.client.search index: 'logstash-*',
-          body: query.merge( { from: (page - 1)*NUMBER_ON_PAGE, size: NUMBER_ON_PAGE })
-        records = response["hits"]["hits"].map { |item| item["_source"] }
-                                          .map { |item| API.extract_message(item) }
-                                          .select do |item| params.slice(:from_email, :to_email, :to,:from,:status).keys.map do |it| (
-                                            it.to_sym != :to && it.to_sym != :from ? ( params[it] == item[it.to_sym] )
-                                             : API.compare_time(item[:timestamp],params[it], it.to_sym) ) end.all?
-                                          end
+        (response,page) = API.response(params, NUMBER_ON_PAGE, :from_email, :to_email, :status) { |item| API.extract_message(item) }
+         records       = response.select do |item| params.slice(:from_email, :to_email, :to,:from,:status).keys.map do |it| (
+                           it.to_sym != :to && it.to_sym != :from ? ( params[it] == item[it.to_sym] )
+                           : API.compare_time(item[:timestamp],params[it], it.to_sym) ) end.all?
+                         end
 
         # return json data
         {
