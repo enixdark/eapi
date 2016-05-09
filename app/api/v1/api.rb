@@ -19,7 +19,10 @@ module V1
     REGEX_ERROR_MESSAGE = /sender address rejected[\w\W]+\)/i
     REGEX_SUBJECT = /subject:[\w\s]+from/i
     NUMBER_ON_PAGE = 25
+    NUMBER_MAX_PAGE = 10000
 
+    REGEX_SMTP_RESPONSE = /said:\s+\d{1,3}[\-\s]+\d{1,3}.\d{1,3}.\d{1,3}/i
+    REGEX_AUTHEN_INVALID = /authentication failure: client response/i
 
     # extract and format some field from json message
     def self.extract_message(item)
@@ -45,6 +48,57 @@ module V1
       tp = DateTime.parse(time1) #.strftime('%Q')
       ti = DateTime.parse(time2)
       symbol == :to ? tp <= ti : tp >= ti
+    end
+
+    def self.extract_code(item)
+      message = item["message"]
+      email = REGEX_EMAIL.match(message)[0] rescue nil
+      timestamp =  DateTime.parse(item["@timestamp"]).strftime("%Y-%m-%d %H:%M:%S") rescue nil
+      # if message.match("said")
+      #   byebug
+      # end
+      code = REGEX_SMTP_RESPONSE.match(message)[0].split(/[\-\s]/)[1].to_i rescue nil
+      unless code
+        code = REGEX_AUTHEN_INVALID.match(message) == nil ? nil : 535
+      end
+      {
+        email: email,
+        timestamp: timestamp,
+        code: code
+      }
+    end
+
+
+    resource :statistic do
+      desc 'Return statistic messages of email'
+      params do
+        optional :email, type: String
+        optional :from, type: String
+        optional :to, type: String
+        optional :page, type: Integer
+        optional :status, type: String
+      end
+
+      get do
+        must = [] << {}.merge(params.slice(:email, :status)).values.map do |item|
+          {
+            match: {
+                message: item
+            }
+          }
+        end
+        from = params.key?(:from) ? DateTime.parse("#{params[:from]} 00:00:00").strftime('%Q').to_i : nil
+        to = params.key?(:to) ? DateTime.parse("#{params[:to]} 23:59:59").strftime('%Q').to_i : nil
+        must[0] << { range: { "@timestamp": {}.merge(gte: from).merge(lte: to).select { |key,value| value != nil } } }
+        query = must.flatten.empty? ? { query: { match_all: {} } } : { query: { bool: { must: must } } }
+        response = Elasticsearch::Model.client.search index: 'logstash-*', body: query.merge( { size: NUMBER_MAX_PAGE })
+        records = response["hits"]["hits"].map { |item| item["_source"] }
+                                .map { |item| API.extract_code(item) }
+                                .select { |item| item[:code] != nil }
+        byebug
+      end
+
+
     end
 
 
@@ -92,8 +146,9 @@ module V1
                 }
         }
       end
-
     end
+
+
   end
 end
 
