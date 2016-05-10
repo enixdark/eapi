@@ -27,7 +27,7 @@
       to = REGEX_EMAIL.match(REGEX_TO_EMAIL.match(message)[0])[0] rescue nil
       status = REGEX_STATUS.match(message)[0].split("=")[1] rescue nil
       subject = REGEX_SUBJECT.match(message)[0].split(" ")[1..-2].join(" ") rescue nil
-      error_message = status == "deferred" ? ( REGEX_ERROR_MESSAGE.match(message)[0] rescue nil )  : nil
+      error_message = ( status == "deferred" || status == "bounced" ) ? ( REGEX_ERROR_MESSAGE.match(message)[0] rescue nil )  : nil
       { :timestamp =>  timestamp,
         :status => status,
         :from => from ,
@@ -63,30 +63,35 @@
     end
 
 
-    def response_with_filter(params, size, filter, *args)
+    def response_with_filter(params, size, _must, should, filter, *args)
       page = params.key?(:page) ? params[:page].to_i : 1
-      must = [] << {}.merge(params.slice(args)).values.map do |item|
-        {
-          match: {
-              message: item
-          }
-        }
-      end
+      must = [] << {}.merge(params.slice(*args.flatten)).values
+                     .map { |item| { match_phrase: { message: item } } }
+      #formatter time again
       from = params.key?(:from) ? DateTime.parse("#{params[:from]} 00:00:00").strftime('%Q').to_i : nil
       to = params.key?(:to) ? DateTime.parse("#{params[:to]} 23:59:59").strftime('%Q').to_i : nil
-      must[0] << { range: { "@timestamp": {}.merge(gte: from).merge(lte: to).select { |key,value| value != nil } } }
-      must[0] << { match: { message: "postfix/smtp" } }
+
+      must[0].push(*[{ range: { "@timestamp": {}.merge(gte: from).merge(lte: to).select { |key,value| value != nil } } },
+                     { match_phrase: { message: "postfix/smtp" } }
+                    ],
+                   *_must
+                  )
+      if params.key?(:status)
+      	must[0] << { match_phrase: { message: "status=#{params[:status]}"} }
+      end
       query = must.flatten.empty? ? { query: { match_all: {} } } :
-       { query: { bool: { must: must, filter: filter } } }
+       { query: { bool: { must: must, should: should, filter: filter } } }
       response = Elasticsearch::Model.client.search index: INDEX,
-        body: query.merge( { from: (page - 1)*size, size: size })
+        body: query.merge( { from: (page - 1)*size, size: size , sort: [{"@timestamp": "asc" }]})
+
       [response["hits"]["hits"].map { |item| item["_source"] }
                               .map { |item| yield(item) }, page]
     end
 
     def response(params, size, *args)
-      self.response_with_filter(params, size,
-      	{ bool: { should: [{ match: { message: "said:" } }, { match: { message: "status=" } } ] } }, args) { |item| yield(item) }
+      self.response_with_filter(params, size, [],
+      	[{ match: { message: "said:" }}, { match_phrase: { message: "status="} }],
+      	{} , args) { |item| yield(item) }
+        #filter { bool: { should: [{ match: { message: "said:" } }, { match: { message: "status=" } } ] } }
     end
-
  end

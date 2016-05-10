@@ -23,7 +23,7 @@ module V1
       end
 
       get do
-        (response,page) = API::response(params, Helper::NUMBER_MAX_PAGE, :email, :status) { |item| API::extract_code(item) }
+        (response,page) = API::response(params, Helper::NUMBER_MAX_PAGE, :email) { |item| API::extract_code(item) }
         records = response.select { |item| (item[:code] != nil || params[:status] != nil) &&
           ( params.key?(:email) ? params[:email] == item[:email] : true ) &&
           ( params.key?(:status) ? params[:status] == item[:status] : true )
@@ -49,11 +49,12 @@ module V1
         optional :page, type: Integer
       end
       get do
-        (response,page) = API::response(params, Helper::NUMBER_ON_PAGE, :from_email, :to_email, :status) { |item| API::extract_message(item) }
-         records       = response.select do |item| params.slice(:from_email, :to_email, :to,:from,:status).keys.map do |it| (
-                           it.to_sym != :to && it.to_sym != :from ? ( params[it] == item[it.to_sym] )
-                           : API::compare_time(item[:timestamp],params[it], it.to_sym) ) end.all?
-                         end
+        (response,page) = API::response(params, Helper::NUMBER_ON_PAGE, :from_email, :to_email) { |item| API::extract_message(item) }
+         records       = response
+                         # .select do |item| params.slice(:from_email, :to_email, :to,:from,:status).keys.map do |it| (
+                         #   it.to_sym != :to && it.to_sym != :from ? ( params[it] == item[it.to_sym] )
+                         #   : API::compare_time(item[:timestamp],params[it], it.to_sym) ) end.all?
+                         # end
 
         # return json data
         {
@@ -76,14 +77,18 @@ module V1
         optional :to, type: String
         optional :page, type: Integer
       end
-      get :filter do
-        (response,page) = API::response_with_filter(params, Helper::NUMBER_ON_PAGE, 
-          { bool: { must: [{ match: { message: "said:" } }, { regexp: { message: "(500|501|502|503|504|510|511|512|513|523|530|541|550|551|552|553|554)" } }] } } ,
+      get :server_error do
+        (response,page) = API::response_with_filter(params, Helper::NUMBER_ON_PAGE,
+          [{ match: { message: "said:" } }, { regexp: { message: "(500|501|502|503|504|510|511|512|513|523|530|541|550|551|552|553|554)" } }],
+          [],
+          {},
           :email, :status) { |item| API::extract_code(item,true) }
-        records = response.select { |item| ( item[:code].to_i >= 500 ) &&
-          ( params.key?(:email) ? params[:email] == item[:email] : true ) &&
-          ( params.key?(:status) ? params[:status] == item[:status] : true )
-        }
+        records = response
+        # filter { bool: { must: [{ match: { message: "said:" } }, { regexp: { message: "(500|501|502|503|504|510|511|512|513|523|530|541|550|551|552|553|554)" } }] } }
+        #.select { |item| ( item[:code].to_i >= 500 ) &&
+        #   ( params.key?(:email) ? params[:email] == item[:email] : true ) &&
+        #   ( params.key?(:status) ? params[:status] == item[:status] : true )
+        # }
         records
       end
     end
