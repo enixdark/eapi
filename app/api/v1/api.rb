@@ -51,10 +51,10 @@ module V1
       get do
         (response,page) = API::response(params, Helper::NUMBER_ON_PAGE, :from_email, :to_email) { |item| API::extract_message(item) }
          records       = response
-                         # .select do |item| params.slice(:from_email, :to_email, :to,:from,:status).keys.map do |it| (
-                         #   it.to_sym != :to && it.to_sym != :from ? ( params[it] == item[it.to_sym] )
-                         #   : API::compare_time(item[:timestamp],params[it], it.to_sym) ) end.all?
-                         # end
+                         .select do |item| params.slice(:from_email, :to_email).keys.map do |it|
+                             params[it] == item[it.split('_')[0].to_sym]
+                           end.all?
+                         end
 
         # return json data
         {

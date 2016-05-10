@@ -47,7 +47,21 @@
       email = REGEX_EMAIL.match(message)[0] rescue nil
       timestamp =  DateTime.parse(item["@timestamp"]).strftime("%Y-%m-%d %H:%M:%S") rescue nil
       status = REGEX_STATUS.match(message)[0].split("=")[1] rescue nil
-      code = status == "sent" ? 250 : REGEX_SMTP_RESPONSE.match(message)[0].split(/[\-\s]/)[1].to_i rescue nil
+      if status == "sent" 
+      	code = 250
+      else
+      	check_code = REGEX_SMTP_RESPONSE.match(message)[0].split(/[\-\s]/)[1].to_i rescue nil
+      	if check_code && check_code.to_i != 0
+          code = check_code
+      	else
+      	  case message
+      	    when /Host or domain name not found/
+      	  	  code = 512
+      	    else
+      	  	  code = nil
+      	  end
+      	end
+      end
       if _subject
       	subject = REGEX_ERROR_MESSAGE.match(message)[0].split(" ")[1..-1].join(" ") rescue nil
       end
