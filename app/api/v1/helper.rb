@@ -79,8 +79,7 @@
       	must[0].push(*[{ range: { "@timestamp": {}.merge(gte: from).merge(lte: to).select { |key,value| value != nil } } }
       ])
       response = Elasticsearch::Model.client.search index: INDEX,
-        body: { _source: false, query: { bool: { must: must } } ,aggs: { ids: { terms: { field: "qid.raw"}}} , 
-          from:0, size:50, sort: [{"@timestamp": "asc" }] }
+        body: { _source: false, query: { bool: { must: must } } ,aggs: { ids: { terms: { field: "qid.raw", size: 0}}} ,  sort: [{"@timestamp": "asc" }] }
       response["aggregations"]["ids"]["buckets"].map { |item| item["key"] }
     end
 
