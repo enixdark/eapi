@@ -47,6 +47,15 @@ module V1
               dict[item[:code]] = dict.key?(item[:code]) ? (dict[item[:code]]  + 1) : 1
               dict
           end
+        {
+          meta: {
+            total_records: records.length,
+            page_size: nil,
+            page: page,
+            page_count: nil
+          },
+          records: records
+        }
       end
     end
 
@@ -69,13 +78,13 @@ module V1
                          end.all?
                        end
         {
-        _meta: {
-        total_records: records.length,
-        page_size: nil,
-        page: page,
-        page_count: nil,
-        records: records
-                }
+          meta: {
+            total_records: records.length,
+            page_size: nil,
+            page: page,
+            page_count: nil
+          },
+          records: records
         }
       end
 
@@ -94,7 +103,15 @@ module V1
           ( params.key?(:email) ? params[:email] == item[:email] : true ) &&
           ( params.key?(:status) ? params[:status] == item[:status] : true )
         }
-        records
+        {
+          meta: {
+            total_records: records.length,
+            page_size: nil,
+            page: page,
+            page_count: nil
+          },
+          records: records
+        }
       end
     end
   end

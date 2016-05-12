@@ -61,7 +61,7 @@
 	  	  end
 	    end
 	    if _subject
-	  	  subject = item[:error_message] # REGEX_ERROR_MESSAGE.match(message)[0].split(" ")[1..-1].join(" ") rescue nil
+	  	  subject = item[:error_message].split(" ")[1..-1].join(" ") rescue nil  # REGEX_ERROR_MESSAGE.match(message)[0].split(" ")[1..-1].join(" ") rescue nil
 	    end
       {
     	  email: item[:from],
@@ -69,7 +69,7 @@
         timestamp: item[:timestamp],
         code: code,
         status: status,
-      }.merge( _subject ? {subject: subject.split(" ")[1..-1].join(" ")} : {} )
+      }.merge( _subject ? {subject: subject } : {} )
     end
 
     def ids(params)
