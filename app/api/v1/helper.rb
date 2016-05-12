@@ -19,17 +19,10 @@
 
     INDEX = 'logstash-*'
 
-    # def extract_id(item)
-    #   message = item["message"]
-    #   REGEX_ID.match(message)[0].split(":")[-1].strip rescue nil
-    # end
 
     # extract and format some field from json message
     def extract_message(item)
       message = item["message"]
-      # timestamp = DateTime.parse("#{DateTime.parse(item['@timestamp']).year} \
-      #     #{REGEX_TIME.match(message)[0]}")
-      # .strftime("%Y-%m-%d %H:%M:%S") rescue nil
       timestamp =  DateTime.parse(item["@timestamp"]).strftime("%Y-%m-%d %H:%M:%S") rescue nil
       from = REGEX_EMAIL.match(REGEX_FROM_EMAIL.match(message)[0])[0] rescue nil
       to = REGEX_EMAIL.match(REGEX_TO_EMAIL.match(message)[0])[0] rescue nil
@@ -44,11 +37,6 @@
       }.merge( error_message ? { error_message: error_message } : {})
     end
 
-    def compare_time(time1, time2, symbol)
-      tp = DateTime.parse(time1) #.strftime('%Q')
-      ti = DateTime.parse(time2)
-      symbol == :to ? tp <= ti : tp >= ti
-    end
 
     def extract_code(item, _subject = false)
       unless Cache::Code.key? item["id"]
@@ -90,35 +78,13 @@
       response["aggregations"]["ids"]["buckets"].map { |item| item["key"] }
     end
 
-    def response_with_filter(params, size, _must, should, filter, *args)
-      page = params.key?(:page) ? params[:page].to_i : 1
-      must = [] << {}.merge(params.slice(*args.flatten)).values
-                     .map { |item| { match_phrase: { message: item } } }
-      #formatter time again
-      from = params.key?(:from) ? DateTime.parse("#{params[:from]} 00:00:00").strftime('%Q').to_i : nil
-      to = params.key?(:to) ? DateTime.parse("#{params[:to]} 23:59:59").strftime('%Q').to_i : nil
-
-      must[0].push(*[{ range: { "@timestamp": {}.merge(gte: from).merge(lte: to).select { |key,value| value != nil } } },
-                    ],
-                   *_must
-                  )
-      if params.key?(:status)
-      	must[0] << { match_phrase: { message: "status=#{params[:status]}"} }
-      end
-      query = must.flatten.empty? ? { query: { match_all: {} } } :
-       { query: { bool: { must: must, should: should, filter: filter } } }
-      response = Elasticsearch::Model.client.search index: INDEX,
-        body: query.merge( { from: (page - 1)*size, size: size , sort: [{"@timestamp": "asc" }]})
-
-      [response["hits"]["hits"].map { |item| item["_source"] }
-                              .map { |item| yield(item) }, page]
-    end
-
     def response(params, size, *args)
-      self.response_with_filter(params, size, [],
-      	[{ match: { message: "said:" }}, { match_phrase: { message: "status="} }, { match_phrase: { message: "postfix/smtp" } }],
-      	{} , args) { |item| yield(item) }
-        #filter { bool: { should: [{ match: { message: "said:" } }, { match: { message: "status=" } } ] } }
+      _ids = ids
+      page = params.key?(:page) ? params[:page].to_i : 1
+      [(_ids[(page-1)*size..page*size] || [])
+      .map { |item|
+            response_with_id(params, item) { |item| yield(item) }
+      }, page ]
     end
 
     def response_with_id(params, id ,  *args)
