@@ -89,7 +89,7 @@ module V1
         optional :page, type: Integer
       end
       get :server_error do
-        (records,page) = API::response(params, Helper::NUMBER_ON_PAGE) { |item| API::extract_code(item) }
+        (records,page) = API::response(params, Helper::NUMBER_ON_PAGE) { |item| API::extract_code(item,true) }
          records = records.select { |item| ( item[:code].to_i >= 500 ) &&
           ( params.key?(:email) ? params[:email] == item[:email] : true ) &&
           ( params.key?(:status) ? params[:status] == item[:status] : true )
