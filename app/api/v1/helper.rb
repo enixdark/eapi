@@ -86,7 +86,7 @@
     def response(params, size, *args)
       _ids = ids(params)
       page = params.key?(:page) ? params[:page].to_i : 1
-      [(_ids[(page-1)*size..page*size] || [])
+      [(_ids[(page-1)*size..page*size-1] || [])
       .map { |item|
             response_with_id(params, item) { |item| yield(item) }
       }, page ]
