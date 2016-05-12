@@ -47,15 +47,7 @@ module V1
               dict[item[:code]] = dict.key?(item[:code]) ? (dict[item[:code]]  + 1) : 1
               dict
           end
-        {
-          meta: {
-            total_records: records.length,
-            page_size: nil,
-            page: page,
-            page_count: nil
-          },
-          records: records
-        }
+        API::formatter_json(records,page)
       end
     end
 
@@ -77,15 +69,7 @@ module V1
                            params[it] == item[it.split('_')[0].to_sym]
                          end.all?
                        end
-        {
-          meta: {
-            total_records: records.length,
-            page_size: nil,
-            page: page,
-            page_count: nil
-          },
-          records: records
-        }
+        API::formatter_json(records,page)
       end
 
 
@@ -103,15 +87,7 @@ module V1
           ( params.key?(:email) ? params[:email] == item[:email] : true ) &&
           ( params.key?(:status) ? params[:status] == item[:status] : true )
         }
-        {
-          meta: {
-            total_records: records.length,
-            page_size: nil,
-            page: page,
-            page_count: nil
-          },
-          records: records
-        }
+        API::formatter_json(records,page)
       end
     end
   end

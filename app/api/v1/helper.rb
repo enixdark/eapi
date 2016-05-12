@@ -124,4 +124,16 @@
       response = Cache::Data.get(id)
       yield(response)
     end
+
+    def formatter_json(records,page)
+    	{
+        meta: {
+          total_records: records.length,
+          page_size: nil,
+          page: page,
+          page_count: nil
+        },
+        records: records
+      }
+    end
  end
