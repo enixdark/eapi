@@ -23,7 +23,7 @@ module V1
 
       get do
         # the current query use aggs
-        ids = API::ids
+        ids = API::ids(params)
       end
     end
 

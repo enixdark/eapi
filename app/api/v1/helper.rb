@@ -72,15 +72,20 @@
       }.merge( _subject ? {subject: subject} : {} )
     end
 
-    def ids
+    def ids(params)
+    	from = params.key?(:from) ? DateTime.parse("#{params[:from]} 00:00:00").strftime('%Q').to_i : nil
+      to = params.key?(:to) ? DateTime.parse("#{params[:to]} 23:59:59").strftime('%Q').to_i : nil
+      must = [[]]
+      	must[0].push(*[{ range: { "@timestamp": {}.merge(gte: from).merge(lte: to).select { |key,value| value != nil } } }
+      ])
       response = Elasticsearch::Model.client.search index: INDEX,
-        body: { _source: false, aggs: { ids: { terms: { field: "qid.raw"}}} , 
+        body: { _source: false, query: { bool: { must: must } } ,aggs: { ids: { terms: { field: "qid.raw"}}} , 
           from:0, size:50, sort: [{"@timestamp": "asc" }] }
       response["aggregations"]["ids"]["buckets"].map { |item| item["key"] }
     end
 
     def response(params, size, *args)
-      _ids = ids
+      _ids = ids(params)
       page = params.key?(:page) ? params[:page].to_i : 1
       [(_ids[(page-1)*size..page*size] || [])
       .map { |item|
@@ -89,14 +94,14 @@
     end
 
     def response_with_id(params, id ,  *args)
-      from = params.key?(:from) ? DateTime.parse("#{params[:from]} 00:00:00").strftime('%Q').to_i : nil
-      to = params.key?(:to) ? DateTime.parse("#{params[:to]} 23:59:59").strftime('%Q').to_i : nil
-      must = [[]]
-      must[0].push(*[{ range: { "@timestamp": {}.merge(gte: from).merge(lte: to).select { |key,value| value != nil } } },
-      	             { match: { message: id }}
-                    ]
-                  )
+      
       unless Cache::Data.key? id
+      	from = params.key?(:from) ? DateTime.parse("#{params[:from]} 00:00:00").strftime('%Q').to_i : nil
+      	to = params.key?(:to) ? DateTime.parse("#{params[:to]} 23:59:59").strftime('%Q').to_i : nil
+      	must = [[]]
+      	must[0].push(*[{ range: { "@timestamp": {}.merge(gte: from).merge(lte: to).select { |key,value| value != nil } } },
+      		{ match: { message: id }}
+      	])
         response = Elasticsearch::Model.client.search index: INDEX, 
           body: { query: { bool: { must: must } } }.merge({ from:0, size:50, sort: [{"@timestamp": "asc" }] })
         response = response["hits"]["hits"]
