@@ -110,8 +110,8 @@
         message = response.map { |item| item["_source"]["message"] }.join("\n") rescue nil
         status = response.map { |item| item["_source"]["result"] }.uniq.compact.pop
         timestamp = DateTime.parse(response[0]["_source"]["@timestamp"]).strftime("%Y-%m-%d %H:%M:%S") rescue nil
-        error_message = (response.map { |item| REGEX_ERROR_MESSAGE.match(item["_source"]["message"])[0] rescue nil }).uniq.compact.pop
-        subject = response.map { |item| REGEX_SUBJECT.match(item["_source"]["message"])[0] rescue nil }.compact.pop
+        error_message = (response.map { |item| REGEX_ERROR_MESSAGE.match(item["_source"]["message"])[0].split(" ")[1..-1].join(" ") rescue nil }).uniq.compact.pop
+        subject = response.map { |item| REGEX_SUBJECT.match(item["_source"]["message"])[0].split(" ")[1..-2].join(" ") rescue nil }.compact.pop
         reason = response.map { |item| item["_source"]["reason"] }.compact.pop
         Cache::Data.put(id, { message: message, timestamp: timestamp, id: id, status: status, to: to, from: from,
          subject: subject, reason: reason, error_message: error_message })
