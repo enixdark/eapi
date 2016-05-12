@@ -1,10 +1,18 @@
-web:
+web_es:
   build: .
+  command: ./script/start
   ports:
-    - "3000:3000"
+    - "4000:4000"
   environment:
     - DEBUG=false
     - RAILS_ENV=development
-  command: bundle exec rails s -p 3000 -b '0.0.0.0'
+    - ELASTICSEARCH_HOST=http://123.31.11.183:9200
+  #command: bundle exec rails s -p 4000 -b '0.0.0.0'
   volumes:
     - .:/app
+  volumes_from:
+    - box
+box:
+  image: busybox
+  volumes:
+    - /box

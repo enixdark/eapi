@@ -8,9 +8,12 @@ RUN mkdir -p /app
 WORKDIR /app
 COPY . ./
 # COPY Gemfile Gemfile.lock ./
-RUN gem install grape
+#RUN gem install grape
 # RUN gem install --user-install bundler &&
-RUN bundle install --jobs 20 --retry 5
+#RUN bundle install --jobs 20 --retry 5
+
+ENV BUNDLE_PATH /box
+ADD . /app
 
 RUN locale-gen en_US.UTF-8
 ENV LANG en_US.UTF-8
