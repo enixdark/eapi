@@ -62,6 +62,7 @@ GEM
       minitest (~> 5.1)
       tzinfo (~> 1.1)
     addressable (2.4.0)
+    api-pagination (4.3.0)
     arel (7.0.0)
     axiom-types (0.1.1)
       descendants_tracker (~> 0.0.4)
@@ -135,6 +136,9 @@ GEM
     i18n (0.7.0)
     ice_nine (0.11.2)
     json (1.8.3)
+    kaminari (0.16.3)
+      actionpack (>= 3.0.0)
+      activesupport (>= 3.0.0)
     listen (3.0.7)
       rb-fsevent (>= 0.9.3)
       rb-inotify (>= 0.9.7)
@@ -205,8 +209,6 @@ GEM
     rb-fsevent (0.9.7)
     rb-inotify (0.9.7)
       ffi (>= 0.5.0)
-    rest-client (1.6.7)
-      mime-types (>= 1.16)
     rspec (3.1.0)
       rspec-core (~> 3.1.0)
       rspec-expectations (~> 3.1.0)
@@ -267,6 +269,7 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
+  api-pagination
   binding_of_caller
   byebug
   capybara
@@ -281,12 +284,12 @@ DEPENDENCIES
   grape_on_rails_routes
   guard-rspec
   hashie-forbidden_attributes
+  kaminari
   listen (~> 3.0.5)
   pry-rails
   puma (~> 3.0)
   rack-cors
   rails (>= 5.0.0.beta4, < 5.1)
-  rest-client
   rspec-rails
   simplecov
   spring
