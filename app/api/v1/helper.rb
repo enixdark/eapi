@@ -91,14 +91,13 @@
     def response(params, size, *args)
       _ids = ids(params)
       page = params.key?(:page) ? params[:page].to_i : 1
-      [(_ids[(page-1)*size..page*size-1] || [])
+      [Kaminari.paginate_array(_ids).page(params[:page]).per(size)
       .map { |item|
             response_with_id(params, item) { |item| yield(item) }
       }, page ]
     end
 
     def response_with_id(params, id ,  *args)
-      
       unless Cache::Data.key? id
       	from = params.key?(:from) ? DateTime.parse("#{params[:from]} 00:00:00").strftime('%Q').to_i : nil
       	to = params.key?(:to) ? DateTime.parse("#{params[:to]} 23:59:59").strftime('%Q').to_i : nil
@@ -120,7 +119,6 @@
         Cache::Data.put(id, { message: message, timestamp: timestamp, id: id, status: status, to: to, from: from,
          subject: subject, reason: reason, error_message: error_message })
       end
-
       response = Cache::Data.get(id)
       yield(response)
     end

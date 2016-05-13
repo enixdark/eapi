@@ -1,6 +1,4 @@
 module Cache
-
-	
 	module Data
 	  @data = {}
 	  def self.put(key, value)
