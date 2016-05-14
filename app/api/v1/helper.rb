@@ -37,7 +37,6 @@
       }.merge( item[:error_message] ? { error_message: item[:error_message].split(" ")[1..-1].join(" ") } : {})
     end
 
-
     def extract_code(item, _subject = false)
       message = item[:error_message]
       # email = REGEX_EMAIL.match(message)[0] rescue nil
@@ -107,15 +106,28 @@
       	])
         response = Elasticsearch::Model.client.search index: INDEX, 
           body: { query: { bool: { must: must } } }.merge({ from:0, size:50, sort: [{"@timestamp": "asc" }] })
+
         response = response["hits"]["hits"]
-        from = response.map { |item| item["_source"]["from"] }.uniq.compact.pop# (response.map { |item| REGEX_EMAIL.match(REGEX_FROM_EMAIL.match(item["_source"]["message"])[0])[0] rescue nil }).uniq.compact.pop
-        to = response.map { |item| item["_source"]["to"] }.uniq.compact.pop # (response.map { |item| REGEX_EMAIL.match(REGEX_TO_EMAIL.match(item["_source"]["message"])[0])[0] rescue nil }).uniq.compact.pop
+        (from, to , status, error_message, subject , reason) = ["form","to","result","error_message","subject","reason"]
+        .map { |elem| response.map do |item|
+          case elem
+            when "error_message"
+           	  REGEX_ERROR_MESSAGE.match(item["_source"]["message"])[0] rescue nil
+            when "subject"
+           	  REGEX_SUBJECT.match(item["_source"]["message"])[0].split(" ")[1..-2].join(" ") rescue nil
+            else
+           	  item["_source"][elem]
+          end
+        end.uniq.compact.pop }
+
+        # from = response.map { |item| item["_source"]["from"] }.uniq.compact.pop# (response.map { |item| REGEX_EMAIL.match(REGEX_FROM_EMAIL.match(item["_source"]["message"])[0])[0] rescue nil }).uniq.compact.pop
+        # to = response.map { |item| item["_source"]["to"] }.uniq.compact.pop # (response.map { |item| REGEX_EMAIL.match(REGEX_TO_EMAIL.match(item["_source"]["message"])[0])[0] rescue nil }).uniq.compact.pop
         message = response.map { |item| item["_source"]["message"] }.join("\n") rescue nil
-        status = response.map { |item| item["_source"]["result"] }.uniq.compact.pop
+        # status = response.map { |item| item["_source"]["result"] }.uniq.compact.pop
         timestamp = DateTime.parse(response[0]["_source"]["@timestamp"]).strftime("%Y-%m-%d %H:%M:%S") rescue nil
-        error_message = (response.map { |item| REGEX_ERROR_MESSAGE.match(item["_source"]["message"])[0] rescue nil }).uniq.compact.pop
-        subject = response.map { |item| REGEX_SUBJECT.match(item["_source"]["message"])[0].split(" ")[1..-2].join(" ") rescue nil }.compact.pop
-        reason = response.map { |item| item["_source"]["reason"] }.compact.pop
+        # error_message = (response.map { |item| REGEX_ERROR_MESSAGE.match(item["_source"]["message"])[0] rescue nil }).uniq.compact.pop
+        # subject = response.map { |item| REGEX_SUBJECT.match(item["_source"]["message"])[0].split(" ")[1..-2].join(" ") rescue nil }.compact.pop
+        # reason = response.map { |item| item["_source"]["reason"] }.compact.pop
         Cache::Data.put(id, { message: message, timestamp: timestamp, id: id, status: status, to: to, from: from,
          subject: subject, reason: reason, error_message: error_message })
       end
